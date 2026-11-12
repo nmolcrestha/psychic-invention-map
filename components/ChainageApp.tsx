@@ -84,6 +84,12 @@ export default function ChainageApp() {
         alignment={alignment}
         dispatch={dispatch}
         onPlacePick={handlePlacePick}
+        exportProps={{
+          vertices,
+          points,
+          interval,
+          limitExceeded: result?.limitExceeded ?? false,
+        }}
         chainage={{
           intervalRaw,
           startRaw,
