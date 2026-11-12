@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MAX_POINTS, type ChainagePoint, type LatLng } from "@/lib/chainage";
-import { runExport, type ElevationStatus } from "@/lib/export/runExport";
+import {
+  runExport,
+  type ElevationStatus,
+  type MapImageStatus,
+} from "@/lib/export/runExport";
+import { captureMapSnapshot } from "@/lib/snapshot/captureMap";
 import { fetchElevations } from "@/lib/services/elevation";
 import { hasUnsupportedChars } from "@/lib/pdf/format";
 
@@ -29,6 +34,7 @@ export default function ProjectExport({
   const [elevationStatus, setElevationStatus] = useState<ElevationStatus | null>(
     null,
   );
+  const [mapImageStatus, setMapImageStatus] = useState<MapImageStatus | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const runningRef = useRef(false);
@@ -54,6 +60,7 @@ export default function ProjectExport({
     setExporting(true);
     setError(null);
     setElevationStatus(null);
+    setMapImageStatus(null);
     setBannerDismissed(false);
     try {
       const result = await runExport(
@@ -64,9 +71,13 @@ export default function ProjectExport({
             import("@/lib/pdf/buildReport").then((m) => m.buildChainagePdf),
           save: (doc, fileName) => doc.save(fileName),
           now: () => new Date(),
+          captureMap: captureMapSnapshot,
         },
       );
-      if (!controller.signal.aborted) setElevationStatus(result.elevationStatus);
+      if (!controller.signal.aborted) {
+        setElevationStatus(result.elevationStatus);
+        setMapImageStatus(result.mapImageStatus);
+      }
     } catch {
       if (!controller.signal.aborted) {
         setError("Export failed. Please try again.");
@@ -78,12 +89,19 @@ export default function ProjectExport({
     }
   }
 
-  const warning =
+  const elevationWarning =
     elevationStatus === "failed"
       ? "Elevation unavailable; exported without it"
       : elevationStatus === "partial"
         ? "Some elevations unavailable; those values are shown as —"
         : null;
+  const warning =
+    [
+      elevationWarning,
+      mapImageStatus === "unavailable" ? "Map image unavailable in PDF" : null,
+    ]
+      .filter(Boolean)
+      .join(". ") || null;
 
   return (
     <div className="flex flex-col gap-3">

@@ -4,7 +4,14 @@ import { sanitizeFileName } from "../pdf/filename";
 
 export type ElevationStatus = "ok" | "partial" | "failed";
 
-export type ExportResult = { fileName: string; elevationStatus: ElevationStatus };
+export type MapImageStatus = "ok" | "unavailable";
+export type MapImage = { dataUrl: string; width: number; height: number };
+
+export type ExportResult = {
+  fileName: string;
+  elevationStatus: ElevationStatus;
+  mapImageStatus: MapImageStatus;
+};
 
 export type ExportInput = {
   name: string;
@@ -19,7 +26,7 @@ type PdfInput = {
   generatedAt: Date;
   summary: ChainageSummary;
   points: ChainagePoint[];
-  mapImage: null;
+  mapImage: MapImage | null;
   elevationUsed: boolean;
 };
 
@@ -32,6 +39,12 @@ export type ExportDeps<Doc> = {
   loadBuildPdf: () => Promise<(input: PdfInput) => Doc>;
   save: (doc: Doc, fileName: string) => void;
   now: () => Date;
+  /** Captures the map snapshot; null when unavailable. */
+  captureMap: (
+    vertices: LatLng[],
+    points: ChainagePoint[],
+    opts: { signal?: AbortSignal },
+  ) => Promise<MapImage | null>;
 };
 
 function isAbortError(err: unknown): boolean {
@@ -44,6 +57,7 @@ function isAbortError(err: unknown): boolean {
  * Decision: an elevation fetch that rejects with anything other than an
  * AbortError is treated as "all elevations failed" (status 'failed'); the PDF
  * is still exported with dashes. An AbortError is rethrown so callers can stop.
+ * captureMap follows the same rule: a non-abort failure means no map image.
  * Errors from building or saving the PDF propagate.
  */
 export async function runExport<Doc>(
@@ -76,6 +90,13 @@ export async function runExport<Doc>(
         ? "partial"
         : "ok";
 
+  let mapImage: MapImage | null = null;
+  try {
+    mapImage = await deps.captureMap(vertices, points, { signal: input.signal });
+  } catch (err) {
+    if (isAbortError(err)) throw err;
+  }
+
   const generatedAt = deps.now();
   const buildPdf = await deps.loadBuildPdf();
   const doc = buildPdf({
@@ -83,10 +104,14 @@ export async function runExport<Doc>(
     generatedAt,
     summary: buildSummary(points, vertices, interval),
     points,
-    mapImage: null,
+    mapImage,
     elevationUsed: usedCount > 0,
   });
   const fileName = sanitizeFileName(name);
   deps.save(doc, fileName);
-  return { fileName, elevationStatus };
+  return {
+    fileName,
+    elevationStatus,
+    mapImageStatus: mapImage ? "ok" : "unavailable",
+  };
 }

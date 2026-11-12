@@ -17,6 +17,7 @@ const vertices = [
   { lat: 27, lng: 85 },
   { lat: 27.002, lng: 85 },
 ];
+const IMG = { dataUrl: "data:image/png;base64,AAAA", width: 1600, height: 1000 };
 const NOW = new Date(2026, 10, 12, 14, 30);
 
 function setup(overrides: Partial<ExportDeps<string>> = {}) {
@@ -30,6 +31,7 @@ function setup(overrides: Partial<ExportDeps<string>> = {}) {
     loadBuildPdf: async () => buildPdf as never,
     save,
     now: () => NOW,
+    captureMap: vi.fn(async () => IMG),
     ...overrides,
   };
   return { deps, buildPdf, save };
@@ -40,18 +42,22 @@ describe("runExport", () => {
   it("merges elevations, saves with the sanitised name and uses now()", async () => {
     const { deps, buildPdf, save } = setup();
     const res = await runExport(input, deps);
-    expect(res).toEqual({ fileName: "My-Road-chainage.pdf", elevationStatus: "ok" });
+    expect(res).toEqual({
+      fileName: "My-Road-chainage.pdf",
+      elevationStatus: "ok",
+      mapImageStatus: "ok",
+    });
     const arg = buildPdf.mock.calls[0][0] as {
       points: ChainagePoint[];
       generatedAt: Date;
       elevationUsed: boolean;
-      mapImage: null;
+      mapImage: unknown;
       projectName: string;
     };
     expect(arg.points.map((p) => p.elevation)).toEqual([10, 20, 30]);
     expect(arg.generatedAt).toBe(NOW);
     expect(arg.elevationUsed).toBe(true);
-    expect(arg.mapImage).toBeNull();
+    expect(arg.mapImage).toBe(IMG);
     expect(arg.projectName).toBe("My Road");
     expect(points[0].elevation).toBeUndefined();
     expect(save).toHaveBeenCalledWith("doc", "My-Road-chainage.pdf");
@@ -104,6 +110,37 @@ describe("runExport", () => {
     err.name = "AbortError";
     const { deps, save } = setup({
       fetchElevations: async () => {
+        throw err;
+      },
+    });
+    await expect(runExport(input, deps)).rejects.toBe(err);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("builds without an image and reports unavailable when captureMap returns null", async () => {
+    const { deps, buildPdf, save } = setup({ captureMap: async () => null });
+    const res = await runExport(input, deps);
+    expect(res.mapImageStatus).toBe("unavailable");
+    expect((buildPdf.mock.calls[0][0] as { mapImage: unknown }).mapImage).toBeNull();
+    expect(save).toHaveBeenCalled();
+  });
+
+  it("treats a non-abort captureMap error as no image", async () => {
+    const { deps, save } = setup({
+      captureMap: async () => {
+        throw new Error("boom");
+      },
+    });
+    const res = await runExport(input, deps);
+    expect(res.mapImageStatus).toBe("unavailable");
+    expect(save).toHaveBeenCalled();
+  });
+
+  it("rethrows an AbortError from captureMap and does not save", async () => {
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    const { deps, save } = setup({
+      captureMap: async () => {
         throw err;
       },
     });
