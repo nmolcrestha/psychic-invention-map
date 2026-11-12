@@ -14,6 +14,7 @@ import {
   type ChainagePoint,
   type LatLng,
 } from "@/lib/chainage";
+import type { PlaceResult } from "@/lib/services/nominatim";
 import Panel from "./Panel";
 
 const MapView = dynamic(() => import("./map/MapView"), {
@@ -32,8 +33,8 @@ export default function ChainageApp() {
     alignmentReducer,
     initialAlignmentState,
   );
-  // Kept for later milestones (markers, search, snapshot). Null while unmounted.
-  const [, setMap] = useState<L.Map | null>(null);
+  // Null while unmounted.
+  const [map, setMap] = useState<L.Map | null>(null);
 
   const [intervalRaw, setIntervalRaw] = useState("100");
   const [startRaw, setStartRaw] = useState("0");
@@ -68,11 +69,21 @@ export default function ChainageApp() {
     [],
   );
 
+  const handlePlacePick = useCallback(
+    (place: PlaceResult) => {
+      if (!map) return;
+      if (place.bounds) map.fitBounds(place.bounds);
+      else map.setView([place.lat, place.lng], 16);
+    },
+    [map],
+  );
+
   return (
     <div className="flex h-dvh w-full flex-col md:flex-row">
       <Panel
         alignment={alignment}
         dispatch={dispatch}
+        onPlacePick={handlePlacePick}
         chainage={{
           intervalRaw,
           startRaw,
