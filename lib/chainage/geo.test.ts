@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bearing, distance, interpolate, segmentLengths } from './geo'
+import { EARTH_RADIUS_M, bearing, distance, interpolate, segmentLengths } from './geo'
 
 describe('distance', () => {
-  it('1 degree of longitude at the equator is about 111,195 m', () => {
-    expect(distance({ lat: 0, lng: 0 }, { lat: 0, lng: 1 })).toBeCloseTo(111_195, -1)
+  it('uses the WGS84 mean radius', () => {
+    expect(EARTH_RADIUS_M).toBe(6_371_008.8)
+  })
+
+  it('1 degree of longitude at the equator is about 111,195.08 m', () => {
+    expect(distance({ lat: 0, lng: 0 }, { lat: 0, lng: 1 })).toBeCloseTo(111_195.08, 1)
   })
 
   it('London to Paris is about 343.5 km', () => {

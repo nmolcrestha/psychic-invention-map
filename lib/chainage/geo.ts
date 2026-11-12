@@ -18,7 +18,11 @@ export function distance(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
-/** Initial bearing (forward azimuth) from a to b, normalised to [0, 360). */
+/**
+ * Initial bearing (forward azimuth) from a to b, normalised to [0, 360).
+ * Note: bearing(p, p) returns 0, not an undefined value. Callers must check
+ * for zero-length segments themselves before calling this.
+ */
 export function bearing(a: LatLng, b: LatLng): number {
   const phi1 = toRad(a.lat)
   const phi2 = toRad(b.lat)
