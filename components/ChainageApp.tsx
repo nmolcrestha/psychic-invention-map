@@ -1,13 +1,19 @@
 "use client";
 
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer, useState } from "react";
 import dynamic from "next/dynamic";
 import type L from "leaflet";
 import {
   alignmentReducer,
   initialAlignmentState,
 } from "@/lib/alignment/reducer";
-import type { LatLng } from "@/lib/chainage";
+import {
+  generateChainage,
+  segmentLengths,
+  validateChainageInputs,
+  type ChainagePoint,
+  type LatLng,
+} from "@/lib/chainage";
 import Panel from "./Panel";
 
 const MapView = dynamic(() => import("./map/MapView"), {
@@ -19,6 +25,8 @@ const MapView = dynamic(() => import("./map/MapView"), {
   ),
 });
 
+const NO_POINTS: ChainagePoint[] = [];
+
 export default function ChainageApp() {
   const [alignment, dispatch] = useReducer(
     alignmentReducer,
@@ -26,6 +34,29 @@ export default function ChainageApp() {
   );
   // Kept for later milestones (markers, search, snapshot). Null while unmounted.
   const [, setMap] = useState<L.Map | null>(null);
+
+  const [intervalRaw, setIntervalRaw] = useState("100");
+  const [startRaw, setStartRaw] = useState("0");
+  const { vertices } = alignment;
+
+  const inputs = useMemo(
+    () => validateChainageInputs(intervalRaw, startRaw),
+    [intervalRaw, startRaw],
+  );
+  const interval = inputs.ok ? inputs.interval : null;
+  const startChainage = inputs.ok ? inputs.startChainage : null;
+  const result = useMemo(
+    () =>
+      interval !== null && startChainage !== null
+        ? generateChainage(vertices, interval, startChainage)
+        : null,
+    [interval, startChainage, vertices],
+  );
+  const points = result?.points ?? NO_POINTS;
+  const totalLengthM = useMemo(
+    () => segmentLengths(vertices).reduce((a, b) => a + b, 0),
+    [vertices],
+  );
 
   const handleMapClick = useCallback(
     (vertex: LatLng) => dispatch({ type: "addVertex", vertex }),
@@ -39,10 +70,25 @@ export default function ChainageApp() {
 
   return (
     <div className="flex h-dvh w-full flex-col md:flex-row">
-      <Panel alignment={alignment} dispatch={dispatch} />
+      <Panel
+        alignment={alignment}
+        dispatch={dispatch}
+        chainage={{
+          intervalRaw,
+          startRaw,
+          onIntervalChange: setIntervalRaw,
+          onStartChange: setStartRaw,
+          errors: inputs.ok ? {} : inputs.errors,
+          vertexCount: vertices.length,
+          pointCount: result ? points.length : null,
+          limitExceeded: result?.limitExceeded ?? false,
+          totalLengthM,
+        }}
+      />
       <main className="relative isolate min-h-0 flex-1">
         <MapView
-          vertices={alignment.vertices}
+          vertices={vertices}
+          chainagePoints={points}
           mode={alignment.mode}
           onMapClick={handleMapClick}
           onVertexMove={handleVertexMove}

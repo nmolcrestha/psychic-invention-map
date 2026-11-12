@@ -8,6 +8,8 @@ export interface ChainagePoint {
   /** Absolute chainage in metres. */
   chainage: number
   label: string
+  /** True for a multiple of the interval (including a vertex that coincides with one). */
+  isInterval: boolean
   lat: number
   lng: number
   /** Metres from the previous point; 0 for the first point. */

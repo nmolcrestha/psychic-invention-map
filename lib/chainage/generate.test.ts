@@ -184,4 +184,16 @@ describe('generateChainage', () => {
     expect(last.lng).toBe(end.lng)
     expect(last.distFromPrev).toBeCloseTo(49.995, 3)
   })
+
+  it('flags interval points, including a coinciding vertex, but not vertex-only points', () => {
+    const { points } = generateChainage([east(0), east(200), east(350)], 100, 35)
+    expect(points.map((p) => p.isInterval)).toEqual([false, true, true, false, true, false])
+  })
+
+  it('flags a vertex that coincides with an interval multiple as an interval point', () => {
+    const { points } = generateChainage([east(0), east(200), east(350)], 100, 0)
+    expect(points.map((p) => p.chainage)).toEqual([0, 100, 200, 300, 350])
+    expect(points.map((p) => p.isInterval)).toEqual([true, true, true, true, false])
+    expect(points[2].label).toBe('0+200')
+  })
 })

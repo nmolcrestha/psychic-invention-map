@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { AlignmentMode } from "@/lib/alignment/reducer";
-import type { LatLng } from "@/lib/chainage";
+import type { ChainagePoint, LatLng } from "@/lib/chainage";
+import { createChainageLayer, type ChainageLayer } from "./chainageLayer";
 
 const DEFAULT_CENTER: L.LatLngTuple = [27.7172, 85.324];
 const DEFAULT_ZOOM = 13;
@@ -21,6 +22,7 @@ const HANDLE_ICON = L.divIcon({
 type MapViewProps = {
   vertices: LatLng[];
   mode: AlignmentMode;
+  chainagePoints: ChainagePoint[];
   onMapClick: (vertex: LatLng) => void;
   onVertexMove: (index: number, vertex: LatLng) => void;
   /** Called with the map once created, and with null when it is removed. */
@@ -30,6 +32,7 @@ type MapViewProps = {
 export default function MapView({
   vertices,
   mode,
+  chainagePoints,
   onMapClick,
   onVertexMove,
   onReady,
@@ -38,6 +41,7 @@ export default function MapView({
   const mapRef = useRef<L.Map | null>(null);
   const lineRef = useRef<L.Polyline | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const chainageRef = useRef<ChainageLayer | null>(null);
 
   // Latest props for handlers registered once on the map.
   const modeRef = useRef(mode);
@@ -79,6 +83,7 @@ export default function MapView({
     mapRef.current = map;
     lineRef.current = L.polyline([], LINE_STYLE).addTo(map);
     markersRef.current = [];
+    chainageRef.current = createChainageLayer(map);
 
     onReadyRef.current?.(map);
 
@@ -89,6 +94,7 @@ export default function MapView({
       mapRef.current = null;
       lineRef.current = null;
       markersRef.current = [];
+      chainageRef.current = null;
     };
   }, []);
 
@@ -132,6 +138,12 @@ export default function MapView({
 
     line.setLatLngs(vertices.map((v) => [v.lat, v.lng] as L.LatLngTuple));
   }, [vertices]);
+
+  // Declared after the map-creation effect: on mount (and on the StrictMode
+  // remount, which re-runs every effect) it draws onto the fresh map.
+  useEffect(() => {
+    chainageRef.current?.setPoints(chainagePoints);
+  }, [chainagePoints]);
 
   // Crosshair cursor while drawing.
   useEffect(() => {

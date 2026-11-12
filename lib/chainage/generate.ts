@@ -119,6 +119,7 @@ export function generateChainage(
       index: points.length,
       chainage,
       label: formatChainage(chainage, intervalPt ? 0 : 2),
+      isInterval: intervalPt !== undefined,
       lat: pos.lat,
       lng: pos.lng,
       distFromPrev: points.length === 0 ? 0 : s - prevS,

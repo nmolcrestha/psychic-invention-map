@@ -69,7 +69,7 @@ None. There is no database or persistence: all state lives in React state for th
 
 New client-side types (indicative):
 - `LatLng { lat: number; lng: number }`
-- `ChainagePoint { index; chainage (m); label; lat; lng; distFromPrev; bearing; elevation?: number | null }`
+- `ChainagePoint { index; chainage (m); label; lat; lng; distFromPrev; bearing: number | null; isInterval: boolean; elevation?: number | null }`
 
 ## Access rules
 
