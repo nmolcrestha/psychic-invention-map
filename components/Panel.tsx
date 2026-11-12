@@ -22,7 +22,7 @@ export default function Panel({
   exportProps,
 }: PanelProps) {
   return (
-    <aside className="flex max-h-[45dvh] w-full shrink-0 flex-col gap-4 overflow-y-auto border-b border-zinc-200 p-4 md:max-h-none md:w-80 md:border-b-0 md:border-r dark:border-zinc-800">
+    <aside className="flex max-h-[40dvh] w-full shrink-0 flex-col gap-4 overflow-y-auto border-b border-zinc-200 p-4 md:max-h-none md:w-80 md:border-b-0 md:border-r dark:border-zinc-800">
       <h1 className="text-lg font-semibold tracking-tight">Map Chainage Tool</h1>
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">Search</h2>

@@ -40,8 +40,9 @@ export function buildChainagePdf(input: ChainagePdfInput): jsPDF {
   if (allTitleLines.length > 3) {
     // Cut to 3 lines: end the last one with an ellipsis (WinAnsi 0x85) that still fits.
     const last = Array.from(titleLines[2].trimEnd())
-    while (last.length > 0 && doc.getTextWidth(`${last.join('')}…`) > CONTENT_W) last.pop()
-    titleLines[2] = `${last.join('')}…`
+    const withEllipsis = () => `${last.join('').trimEnd()}…`
+    while (last.length > 0 && doc.getTextWidth(withEllipsis()) > CONTENT_W) last.pop()
+    titleLines[2] = withEllipsis()
   }
   doc.text(titleLines, MARGIN, y + 6)
   y += titleLines.length * 8 + 2

@@ -75,7 +75,7 @@ export function chooseZoom(
   return 0;
 }
 
-/** View whose output window is centred on the bounds. */
+/** View whose output window is centred on the bounds (origin rounded to whole pixels). */
 export function viewForBounds(
   bounds: Bounds,
   zoom: number,
@@ -84,10 +84,11 @@ export function viewForBounds(
 ): View {
   const a = latLngToWorld(bounds.north, bounds.west, zoom);
   const b = latLngToWorld(bounds.south, bounds.east, zoom);
+  // Whole-pixel origin: fractional tile offsets cause seams and missing edge slivers.
   return {
     zoom,
-    originX: (a.x + b.x) / 2 - width / 2,
-    originY: (a.y + b.y) / 2 - height / 2,
+    originX: Math.round((a.x + b.x) / 2 - width / 2),
+    originY: Math.round((a.y + b.y) / 2 - height / 2),
   };
 }
 

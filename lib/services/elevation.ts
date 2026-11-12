@@ -1,3 +1,5 @@
+import { abortError } from "./abort";
+
 export type ElevationPoint = { lat: number; lng: number };
 
 export type ElevationResult = {
@@ -17,12 +19,6 @@ export type FetchElevationsOptions = {
 export const ELEVATION_URL = "https://api.open-meteo.com/v1/elevation";
 export const DEFAULT_TIMEOUT_MS = 10_000;
 export const DEFAULT_BATCH_SIZE = 100;
-
-function abortError(): Error {
-  const err = new Error("Elevation request aborted");
-  err.name = "AbortError";
-  return err;
-}
 
 function round6(n: number): string {
   return String(Number(n.toFixed(6)));
@@ -94,7 +90,9 @@ export async function fetchElevations(
   if (signal?.aborted) throw abortError();
   if (points.length === 0) return { elevations: [], anyFailed: false };
 
-  const size = Math.max(1, Math.floor(batchSize));
+  const size = Number.isFinite(batchSize)
+    ? Math.min(DEFAULT_BATCH_SIZE, Math.max(1, Math.floor(batchSize)))
+    : DEFAULT_BATCH_SIZE;
   const elevations: (number | null)[] = [];
   for (let i = 0; i < points.length; i += size) {
     const batch = points.slice(i, i + size);

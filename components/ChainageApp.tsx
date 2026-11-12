@@ -72,7 +72,7 @@ export default function ChainageApp() {
   const handlePlacePick = useCallback(
     (place: PlaceResult) => {
       if (!map) return;
-      if (place.bounds) map.fitBounds(place.bounds);
+      if (place.bounds) map.fitBounds(place.bounds, { maxZoom: 17 });
       else map.setView([place.lat, place.lng], 16);
     },
     [map],
@@ -102,7 +102,7 @@ export default function ChainageApp() {
           totalLengthM,
         }}
       />
-      <main className="relative isolate min-h-0 flex-1">
+      <main className="relative isolate min-h-[200px] flex-1 md:min-h-0">
         <MapView
           vertices={vertices}
           chainagePoints={points}

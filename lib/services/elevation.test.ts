@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildElevationUrl, fetchElevations } from "./elevation";
-import { isAbortError } from "./nominatim";
+import { isAbortError } from "./abort";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -72,30 +72,68 @@ describe("fetchElevations", () => {
 
   it("times out one batch while later batches still succeed", async () => {
     let call = 0;
+    const abortRejection = () => {
+      const e = new Error("aborted");
+      e.name = "AbortError";
+      return e;
+    };
     const fetchFn = vi.fn((url: unknown, init?: RequestInit) => {
       call++;
       if (call === 1) {
         return new Promise<Response>((_, reject) => {
-          init?.signal?.addEventListener("abort", () => {
-            const e = new Error("aborted");
-            e.name = "AbortError";
-            reject(e);
-          });
+          const signal = init?.signal;
+          if (signal?.aborted) return reject(abortRejection());
+          signal?.addEventListener("abort", () => reject(abortRejection()));
         });
       }
       const n = new URL(String(url)).searchParams.get("latitude")!.split(",").length;
       return Promise.resolve(jsonResponse({ elevation: Array(n).fill(7) }));
     });
+    let settled = false;
     const promise = fetchElevations(makePoints(150), {
       fetchFn: asFetch(fetchFn),
-      timeoutMs: 10_000,
+      timeoutMs: 3_000,
+    }).finally(() => {
+      settled = true;
     });
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(settled).toBe(false);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
     const { elevations, anyFailed } = await promise;
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(elevations.slice(0, 100).every((e) => e === null)).toBe(true);
     expect(elevations.slice(100).every((e) => e === 7)).toBe(true);
     expect(anyFailed).toBe(true);
+  });
+
+  it("removes its listeners from the external signal", async () => {
+    const ac = new AbortController();
+    const add = vi.spyOn(ac.signal, "addEventListener");
+    const remove = vi.spyOn(ac.signal, "removeEventListener");
+    await fetchElevations(makePoints(250), {
+      fetchFn: asFetch(echoFetch()),
+      signal: ac.signal,
+    });
+    expect(add).toHaveBeenCalledTimes(3);
+    expect(remove).toHaveBeenCalledTimes(3);
+    for (const [i, call] of add.mock.calls.entries()) {
+      expect(remove.mock.calls[i][1]).toBe(call[1]);
+    }
+  });
+
+  it("clamps batchSize to 1..100 and ignores non-finite values", async () => {
+    const sizesFor = async (batchSize: number, n: number) => {
+      const fetchFn = echoFetch();
+      await fetchElevations(makePoints(n), { fetchFn: asFetch(fetchFn), batchSize });
+      return fetchFn.mock.calls.map(
+        (c) => new URL(String(c[0])).searchParams.get("latitude")!.split(",").length,
+      );
+    };
+    expect(await sizesFor(500, 150)).toEqual([100, 50]);
+    expect(await sizesFor(0, 2)).toEqual([1, 1]);
+    expect(await sizesFor(Infinity, 150)).toEqual([100, 50]);
+    expect(await sizesFor(NaN, 150)).toEqual([100, 50]);
   });
 
   it("gives nulls for malformed JSON", async () => {

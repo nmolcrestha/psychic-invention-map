@@ -46,7 +46,6 @@ export default function ChainageSettings({
       summary = `Length ${totalLengthM.toFixed(2)} m (${(totalLengthM / 1000).toFixed(2)} km), ${pointCount} chainage ${pointCount === 1 ? "point" : "points"}.`;
     }
   }
-  const announced = message;
 
   return (
     <div className="flex flex-col gap-3">
@@ -115,7 +114,7 @@ export default function ChainageSettings({
             : "text-sm text-zinc-500 dark:text-zinc-400"
         }
       >
-        {announced?.text}
+        {message?.text}
       </p>
       {summary && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">{summary}</p>

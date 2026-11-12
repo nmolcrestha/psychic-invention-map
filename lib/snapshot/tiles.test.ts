@@ -64,8 +64,8 @@ describe("view and projection", () => {
     const view = viewForBounds(b, z, 1600, 1000);
     const sw = projectToCanvas(b.south, b.west, view);
     const ne = projectToCanvas(b.north, b.east, view);
-    expect((sw.x + ne.x) / 2).toBeCloseTo(800, 6);
-    expect((sw.y + ne.y) / 2).toBeCloseTo(500, 6);
+    expect((sw.x + ne.x) / 2).toBeCloseTo(800, 0);
+    expect((sw.y + ne.y) / 2).toBeCloseTo(500, 0);
     expect(sw.x).toBeGreaterThanOrEqual(1600 * 0.08 - 1e-6);
     expect(sw.y).toBeLessThanOrEqual(1000 * 0.92 + 1e-6);
   });
@@ -80,6 +80,15 @@ describe("tileRange and wrapping", () => {
       [0, 1],
       [1, 1],
     ]);
+  });
+  it("covers the window with a fractional origin", () => {
+    const tiles = tileRange({ zoom: 3, originX: 255.5, originY: 0.4 }, 2, 10);
+    expect(tiles.map((t) => [t.x, t.y])).toEqual([
+      [0, 0],
+      [1, 0],
+    ]);
+    const edge = tileRange({ zoom: 3, originX: 255.5, originY: 0 }, 0.5, 10);
+    expect(edge.map((t) => t.x)).toEqual([0]);
   });
   it("wraps x and skips rows out of range", () => {
     const tiles = tileRange({ zoom: 1, originX: -100, originY: -100 }, 600, 300);
@@ -103,5 +112,18 @@ describe("tileRange and wrapping", () => {
         { lat: -2, lng: 3 },
       ]),
     ).toEqual({ south: -2, north: 1, west: 3, east: 5 });
+  });
+});
+
+describe("viewForBounds origin", () => {
+  it("is rounded to whole pixels", () => {
+    const view = viewForBounds(
+      { south: 27.7013, west: 85.3011, north: 27.7191, east: 85.3217 },
+      14,
+      1601,
+      999,
+    );
+    expect(Number.isInteger(view.originX)).toBe(true);
+    expect(Number.isInteger(view.originY)).toBe(true);
   });
 });

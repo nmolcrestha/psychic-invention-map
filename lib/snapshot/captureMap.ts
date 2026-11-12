@@ -1,3 +1,4 @@
+import { abortError } from "../services/abort";
 import { formatMapLabel, type ChainagePoint, type LatLng } from "../chainage";
 import {
   TILE_SIZE,
@@ -23,12 +24,6 @@ export type CaptureOptions = {
 
 const MAX_TILES = 60;
 const CONCURRENCY = 6;
-
-function abortError(): Error {
-  const err = new Error("Aborted");
-  err.name = "AbortError";
-  return err;
-}
 
 function defaultLoadImage(
   url: string,
@@ -136,11 +131,18 @@ export async function captureMapSnapshot(
     const timeout = new Promise<false>((resolve) => {
       timer = setTimeout(() => resolve(false), timeoutMs);
     });
+    // Settles an abort promptly even if the loader ignores the signal.
+    let onRaceAbort: (() => void) | undefined;
+    const aborted = new Promise<never>((_, reject) => {
+      onRaceAbort = () => reject(abortError());
+      signal?.addEventListener("abort", onRaceAbort, { once: true });
+    });
     let finished: boolean;
     try {
-      finished = await Promise.race([loading, timeout]);
+      finished = await Promise.race([loading, timeout, aborted]);
     } finally {
       clearTimeout(timer);
+      if (onRaceAbort) signal?.removeEventListener("abort", onRaceAbort);
       signal?.removeEventListener("abort", onOuterAbort);
       inner.abort();
     }

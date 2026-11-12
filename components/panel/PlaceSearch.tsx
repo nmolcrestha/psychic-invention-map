@@ -3,9 +3,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   createPlaceSearcher,
-  isAbortError,
+  searchErrorMessage,
   type PlaceResult,
 } from "@/lib/services/nominatim";
+import { isAbortError } from "@/lib/services/abort";
 
 type PlaceSearchProps = {
   onPick: (place: PlaceResult) => void;
@@ -50,11 +51,7 @@ export default function PlaceSearch({ onPick }: PlaceSearchProps) {
     } catch (err) {
       if (isAbortError(err) || id !== requestId.current) return;
       setResults([]);
-      setError(
-        err instanceof Error && err.message
-          ? `Search failed: ${err.message}`
-          : "Search failed. Check your connection and try again.",
-      );
+      setError(searchErrorMessage(err));
       setStatus("error");
     }
   }
@@ -81,6 +78,7 @@ export default function PlaceSearch({ onPick }: PlaceSearchProps) {
             type="submit"
             className={BUTTON}
             disabled={query.trim() === ""}
+            title={query.trim() === "" ? "Enter a place name to search" : undefined}
           >
             Search
           </button>

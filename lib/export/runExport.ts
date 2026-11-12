@@ -1,6 +1,8 @@
-import { buildSummary, type ChainageSummary } from "../chainage/summary";
+import { buildSummary } from "../chainage/summary";
 import type { ChainagePoint, LatLng } from "../chainage/types";
+import type { ChainagePdfInput } from "../pdf/buildReport";
 import { sanitizeFileName } from "../pdf/filename";
+import { isAbortError } from "../services/abort";
 
 export type ElevationStatus = "ok" | "partial" | "failed";
 
@@ -21,22 +23,13 @@ export type ExportInput = {
   signal?: AbortSignal;
 };
 
-type PdfInput = {
-  projectName: string;
-  generatedAt: Date;
-  summary: ChainageSummary;
-  points: ChainagePoint[];
-  mapImage: MapImage | null;
-  elevationUsed: boolean;
-};
-
 export type ExportDeps<Doc> = {
   fetchElevations: (
     points: { lat: number; lng: number }[],
     opts: { signal?: AbortSignal },
   ) => Promise<{ elevations: (number | null)[]; anyFailed: boolean }>;
   /** Loads the PDF builder lazily so jsPDF stays out of the initial bundle. */
-  loadBuildPdf: () => Promise<(input: PdfInput) => Doc>;
+  loadBuildPdf: () => Promise<(input: ChainagePdfInput) => Doc>;
   save: (doc: Doc, fileName: string) => void;
   now: () => Date;
   /** Captures the map snapshot; null when unavailable. */
@@ -46,10 +39,6 @@ export type ExportDeps<Doc> = {
     opts: { signal?: AbortSignal },
   ) => Promise<MapImage | null>;
 };
-
-function isAbortError(err: unknown): boolean {
-  return err instanceof Error && err.name === "AbortError";
-}
 
 /**
  * Fetches elevations, builds the PDF and saves it.
@@ -99,6 +88,7 @@ export async function runExport<Doc>(
 
   const generatedAt = deps.now();
   const buildPdf = await deps.loadBuildPdf();
+  input.signal?.throwIfAborted();
   const doc = buildPdf({
     projectName: name,
     generatedAt,
@@ -108,6 +98,7 @@ export async function runExport<Doc>(
     elevationUsed: usedCount > 0,
   });
   const fileName = sanitizeFileName(name);
+  input.signal?.throwIfAborted();
   deps.save(doc, fileName);
   return {
     fileName,

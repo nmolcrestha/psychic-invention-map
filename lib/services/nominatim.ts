@@ -1,3 +1,5 @@
+import { abortError, isAbortError } from "./abort";
+
 export type LatLngTuple = [number, number];
 /** [[south, west], [north, east]] */
 export type LatLngBoundsTuple = [LatLngTuple, LatLngTuple];
@@ -93,18 +95,11 @@ export function parseResults(json: unknown): PlaceResult[] {
   return results.slice(0, RESULT_LIMIT);
 }
 
-export function isAbortError(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as { name?: unknown }).name === "AbortError"
-  );
-}
-
-function abortError(): Error {
-  const err = new Error("Search aborted");
-  err.name = "AbortError";
-  return err;
+/** Friendly text for a failed search: network failures versus service errors. */
+export function searchErrorMessage(err: unknown): string {
+  return err instanceof TypeError
+    ? "Search failed — check your connection."
+    : "Search service unavailable, try again later.";
 }
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -135,7 +130,8 @@ type SearcherOptions = {
  */
 export function createPlaceSearcher(options: SearcherOptions = {}) {
   const minInterval = options.minIntervalMs ?? MIN_INTERVAL_MS;
-  const now = options.now ?? (() => Date.now());
+  const now = options.now ?? (() => performance.now());
+  // performance.now() is monotonic, so a clock change cannot freeze the throttle.
   let lastSentAt: number | null = null;
   let controller: AbortController | null = null;
 
@@ -151,7 +147,9 @@ export function createPlaceSearcher(options: SearcherOptions = {}) {
     controller = own;
 
     const waitMs =
-      lastSentAt === null ? 0 : Math.max(0, lastSentAt + minInterval - now());
+      lastSentAt === null
+        ? 0
+        : Math.min(minInterval, Math.max(0, lastSentAt + minInterval - now()));
     if (waitMs > 0) await wait(waitMs, own.signal);
     if (own.signal.aborted) throw abortError();
 

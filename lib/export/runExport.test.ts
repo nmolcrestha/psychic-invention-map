@@ -147,4 +147,47 @@ describe("runExport", () => {
     await expect(runExport(input, deps)).rejects.toBe(err);
     expect(save).not.toHaveBeenCalled();
   });
+
+  it("passes the signal to fetchElevations and captureMap", async () => {
+    const ac = new AbortController();
+    const { deps } = setup();
+    await runExport({ ...input, signal: ac.signal }, deps);
+    expect(deps.fetchElevations).toHaveBeenCalledWith(expect.any(Array), {
+      signal: ac.signal,
+    });
+    expect(deps.captureMap).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(Array),
+      { signal: ac.signal },
+    );
+  });
+
+  it("does not save when aborted while the PDF builder loads", async () => {
+    const ac = new AbortController();
+    const { deps, buildPdf, save } = setup();
+    deps.loadBuildPdf = async () => {
+      ac.abort();
+      return buildPdf as never;
+    };
+    await expect(
+      runExport({ ...input, signal: ac.signal }, deps),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("does not save when aborted while building the PDF", async () => {
+    const ac = new AbortController();
+    const save = vi.fn();
+    const { deps } = setup({
+      loadBuildPdf: async () => () => {
+        ac.abort();
+        return "doc";
+      },
+      save,
+    });
+    await expect(
+      runExport({ ...input, signal: ac.signal }, deps),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(save).not.toHaveBeenCalled();
+  });
 });

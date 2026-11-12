@@ -37,6 +37,7 @@ export default function DrawControls({ state, dispatch }: DrawControlsProps) {
             type="button"
             className={PRIMARY}
             disabled={drawing}
+            title={drawing ? "Already drawing: click on the map" : undefined}
             onClick={() => dispatch({ type: "startDrawing" })}
           >
             Draw alignment
@@ -69,11 +70,17 @@ export default function DrawControls({ state, dispatch }: DrawControlsProps) {
             Undo last point
           </button>
         )}
-        <button type="button" className={BUTTON} onClick={handleClear}>
+        <button
+          type="button"
+          className={BUTTON}
+          onClick={handleClear}
+          disabled={!hasPoints && !drawing}
+          title={!hasPoints && !drawing ? "Nothing to clear" : undefined}
+        >
           Clear
         </button>
       </div>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <p aria-live="polite" className="text-sm text-zinc-500 dark:text-zinc-400">
         {count} {count === 1 ? "point" : "points"}. {hint}.
       </p>
     </div>

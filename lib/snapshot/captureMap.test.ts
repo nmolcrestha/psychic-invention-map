@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { captureMapSnapshot } from "./captureMap";
 import type { ChainagePoint } from "../chainage";
+import {
+  TILE_SIZE,
+  boundsOf,
+  chooseZoom,
+  projectToCanvas,
+  tileRange,
+  tileUrl,
+  viewForBounds,
+} from "./tiles";
 
 const vertices = [
   { lat: 27.7, lng: 85.3 },
@@ -135,5 +144,78 @@ describe("captureMapSnapshot", () => {
     await expect(
       captureMapSnapshot(vertices, points, { signal: c.signal, loadImage: okImage }),
     ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("rejects with AbortError when aborted during tile loading, even if the loader ignores the signal", async () => {
+    const c = new AbortController();
+    const p = captureMapSnapshot(vertices, points, {
+      signal: c.signal,
+      loadImage: () => new Promise(() => {}), // never settles, ignores the signal
+      createCanvas: () => fakeCanvas().canvas,
+    });
+    await Promise.resolve();
+    c.abort();
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("requests the expected tile URLs at the chosen zoom", async () => {
+    const urls: string[] = [];
+    await captureMapSnapshot(vertices, points, {
+      loadImage: async (url) => {
+        urls.push(url);
+        return {} as CanvasImageSource;
+      },
+      createCanvas: () => fakeCanvas().canvas,
+    });
+    const bounds = boundsOf([...vertices, ...points])!;
+    const zoom = chooseZoom(bounds, 1600, 1000);
+    const view = viewForBounds(bounds, zoom, 1600, 1000);
+    const expected = tileRange(view, 1600, 1000).map((t) => tileUrl(zoom, t.wx, t.y));
+    expect(expected.length).toBeGreaterThan(0);
+    expect(urls.slice().sort()).toEqual(expected.slice().sort());
+    expect(urls[0]).toMatch(/^https:\/\/tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/);
+  });
+
+  it("draws tiles at t*256 - origin, aligned with projected vertices", async () => {
+    const { canvas, calls } = fakeCanvas();
+    await captureMapSnapshot(vertices, points, {
+      loadImage: okImage,
+      createCanvas: () => canvas,
+    });
+    const bounds = boundsOf([...vertices, ...points])!;
+    const zoom = chooseZoom(bounds, 1600, 1000);
+    const view = viewForBounds(bounds, zoom, 1600, 1000);
+    const tiles = tileRange(view, 1600, 1000);
+    const draws = calls.filter((c) => c.fn === "drawImage");
+    expect(draws).toHaveLength(tiles.length);
+    tiles.forEach((t, i) => {
+      expect(draws[i].args.slice(1)).toEqual([
+        t.x * TILE_SIZE - view.originX,
+        t.y * TILE_SIZE - view.originY,
+        TILE_SIZE,
+        TILE_SIZE,
+      ]);
+    });
+    // The first vertex lies inside the tile drawn for it.
+    const first = projectToCanvas(vertices[0].lat, vertices[0].lng, view);
+    const move = calls.find((c) => c.fn === "moveTo")!;
+    expect(move.args).toEqual([first.x, first.y]);
+    const covering = draws.find((d) => {
+      const [, x, y] = d.args as number[];
+      return first.x >= x && first.x < x + TILE_SIZE && first.y >= y && first.y < y + TILE_SIZE;
+    });
+    expect(covering).toBeDefined();
+  });
+
+  it("returns null without loading when more than 60 tiles are needed", async () => {
+    const loadImage = vi.fn(okImage);
+    const res = await captureMapSnapshot(vertices, points, {
+      width: 4000,
+      height: 4000,
+      loadImage,
+      createCanvas: () => fakeCanvas().canvas,
+    });
+    expect(res).toBeNull();
+    expect(loadImage).not.toHaveBeenCalled();
   });
 });

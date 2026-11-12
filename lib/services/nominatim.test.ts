@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildSearchUrl,
   createPlaceSearcher,
-  isAbortError,
   parseBoundingBox,
   parseResults,
+  searchErrorMessage,
 } from "./nominatim";
+import { isAbortError } from "./abort";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -187,6 +188,17 @@ describe("createPlaceSearcher", () => {
     await expect(search("x")).rejects.toThrow(/invalid/i);
   });
 
+  it("does not freeze when the clock jumps backwards", async () => {
+    let t = 10_000;
+    const fetchFn = vi.fn(async () => jsonResponse([item]));
+    const search = createPlaceSearcher({ fetchFn, now: () => t });
+    await search("one");
+    t = 0; // clock jumps back
+    const second = search("two");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await second).toHaveLength(1);
+  });
+
   it("rejects on a network error", async () => {
     const search = createPlaceSearcher({
       fetchFn: vi.fn(async () => {
@@ -194,5 +206,19 @@ describe("createPlaceSearcher", () => {
       }),
     });
     await expect(search("x")).rejects.toThrow();
+  });
+});
+
+describe("searchErrorMessage", () => {
+  it("distinguishes network failures from service errors", () => {
+    expect(searchErrorMessage(new TypeError("Failed to fetch"))).toBe(
+      "Search failed — check your connection.",
+    );
+    expect(searchErrorMessage(new Error("Search failed (HTTP 500)"))).toBe(
+      "Search service unavailable, try again later.",
+    );
+    expect(searchErrorMessage(new Error("Search returned an invalid response"))).toBe(
+      "Search service unavailable, try again later.",
+    );
   });
 });

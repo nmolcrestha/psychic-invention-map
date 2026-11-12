@@ -51,6 +51,8 @@ export default function ProjectExport({
   else if (points.length === 0) disabledReason = "No chainage points to export.";
   else if (!trimmed) disabledReason = "Enter a project name.";
   const disabled = disabledReason !== null || exporting;
+  // The hint is rendered only while it applies; aria-describedby uses the same condition.
+  const showHint = disabledReason !== null && !exporting;
 
   async function handleExport() {
     if (runningRef.current || disabledReason !== null || interval === null) return;
@@ -131,12 +133,13 @@ export default function ProjectExport({
         type="button"
         onClick={handleExport}
         disabled={disabled}
-        aria-describedby={disabledReason ? "export-hint" : undefined}
+        aria-describedby={showHint ? "export-hint" : undefined}
+        aria-busy={exporting}
         className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
       >
         {exporting ? "Exporting…" : "Export PDF"}
       </button>
-      {disabledReason && !exporting && (
+      {showHint && (
         <p id="export-hint" className={NOTE}>
           {disabledReason}
         </p>
